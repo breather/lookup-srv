@@ -1,0 +1,39 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.8
+
+    working_directory: /go/src/lookup-srv
+
+    steps:
+      - checkout
+      - add_ssh_keys
+      - run: go build -o /go/pkg/lookup-srv
+      - run: go get github.com/mitchellh/gox
+      - run:
+          name: Tag git repository
+          command: |
+            git config --global user.email 'cirlceci@breather.com'
+            git config --global user.name 'CircleCI'
+            git tag \
+              -a $(cat .circleci/VERSION).${CIRCLE_BUILD_NUM} \
+              -m 'Build of ${CIRCLE_BRANCH}'
+      - run: gox -osarch='linux/amd64' -output='/go/dist/lookup-src-{{.OS}}-{{.Arch}}'
+      - run: go get github.com/tcnksm/ghr
+      - deploy:
+          name: pushing github tag
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              git push origin --tags
+            fi
+      - deploy:
+          name: pushing github release
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              ghr -t $GITHUB_TOKEN \
+                  -u $CIRCLE_PROJECT_USERNAME \
+                  -r $CIRCLE_PROJECT_REPONAME \
+                  $(git describe --tags) /go/dist/
+            fi
