@@ -15,9 +15,10 @@ import (
 var (
 	shellScript = flag.String("script", "", "Script to run with result.")
 	srvName = flag.String("srv", "", "Service responsible for the DNS records of.")
+	dspPort = flag.Bool("port", false, "Enable displaying port number.")
 )
 
-func lookup(svcName string) ([]string, error) {
+func lookup(svcName string, withPort bool) ([]string, error) {
 	var endpoints []string
 	_, srvRecords, err := net.LookupSRV("", "", svcName)
 	if err != nil {
@@ -25,8 +26,14 @@ func lookup(svcName string) ([]string, error) {
 	}
 	for _, srvRecord := range srvRecords {
 		// The SRV records ends in a "." for the root domain
-		ep := fmt.Sprintf("%v", srvRecord.Target[:len(srvRecord.Target)-1])
-		endpoints = append(endpoints, ep)
+		host := srvRecord.Target[:len(srvRecord.Target)-1]
+		if withPort == true {
+			ep := fmt.Sprintf("%v:%v", host, srvRecord.Port)
+			endpoints = append(endpoints, ep)
+		} else {
+			ep := fmt.Sprintf("%v", host)
+			endpoints = append(endpoints, ep)
+		}
 	}
 	return endpoints, nil
 }
@@ -50,7 +57,8 @@ func main() {
 		log.Fatalf("Incomplete args, require -srv or SRV_NAME environment variable")
 	}
 
-	peers, err := lookup(service)
+	withPort := *dspPort
+	peers, err := lookup(service, withPort)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
